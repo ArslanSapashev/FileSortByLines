@@ -45,8 +45,8 @@ public class Combiner {
         File f = File.createTempFile("arsMERGE_", null);
         f.deleteOnExit();
         try(DataOutputStream result = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
-            PushbackInputStream source1 = new PushbackInputStream(new FileInputStream(first), 8192);
-            PushbackInputStream source2 = new PushbackInputStream(new FileInputStream(second), 8192)
+            PushbackInputStream source1 = new PushbackInputStream((new BufferedInputStream(new FileInputStream(first))), 8192);
+            PushbackInputStream source2 = new PushbackInputStream((new BufferedInputStream(new FileInputStream(second))), 8192)
         ) {
             boolean isSourceEmpty = false;
             ByteBuffer bb = ByteBuffer.allocate(8);
