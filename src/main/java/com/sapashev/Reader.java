@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
@@ -16,6 +17,7 @@ import java.util.Arrays;
  */
 public class Reader {
     private final Logger LOG = LoggerFactory.getLogger(Reader.class);
+    private final int SEPARATOR = ByteBuffer.wrap(System.getProperty("line.separator").getBytes()).limit();
 
     /**
      * Fills metas array with line position and length data.
@@ -37,7 +39,7 @@ public class Reader {
             if(((line = br.readLine()) != null)){
                 metas[counter] = packer.packToLong(line.length(), p.position);
                 counter++;
-                p.position = p.position + ((line.length() + 2) * charSize);
+                p.position = p.position + ((line.length() + SEPARATOR) * charSize);
             } else {
                 isEOF = true;
                 break;
