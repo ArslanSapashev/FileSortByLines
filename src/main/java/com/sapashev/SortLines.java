@@ -101,8 +101,8 @@ public class SortLines {
             int charSize = Charset.forName(args[2]).encode("s").limit();
             byte[] separator = Charset.forName(args[2]).encode(System.getProperty("line.separator")).array();
 
-            //TODO replace dis.available within while loop to the for-loop (until file length)
-            while (dis.available() >= LONG_SIZE) {
+            long limit = result.length() / LONG_SIZE;
+            for(int i = 0; i < limit; i++){
                 l = dis.readLong();
                 numBytes = p.getLength(l) * charSize;
                 position = p.getPosition(l);
