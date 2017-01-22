@@ -101,6 +101,7 @@ public class SortLines {
             int charSize = Charset.forName(args[2]).encode("s").limit();
             byte[] separator = Charset.forName(args[2]).encode(System.getProperty("line.separator")).array();
 
+            //TODO replace dis.available within while loop to the for-loop (until file length)
             while (dis.available() >= LONG_SIZE) {
                 l = dis.readLong();
                 numBytes = p.getLength(l) * charSize;
@@ -110,10 +111,8 @@ public class SortLines {
                 if (raf.read(buffer) == -1) {
                     throw new EOFException(String.format("Unexpected end of file at position %s", position));
                 }
-                int bufferLength = buffer.length;
-                buffer = Arrays.copyOf(buffer, (buffer.length + separator.length));
-                System.arraycopy(separator,0,buffer,bufferLength,separator.length);
                 bos.write(buffer);
+                bos.write(separator);
             }
         }
     }
