@@ -142,7 +142,7 @@ public class SortLines {
     }
 
     /**
-     * Inner class, describes position of line which has been read from source file.
+     * Inner class describes position of line which has been read from source file.
      */
     public class Position {
         long position;
