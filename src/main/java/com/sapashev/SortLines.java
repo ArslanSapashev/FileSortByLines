@@ -91,8 +91,7 @@ public class SortLines {
      */
     private void copyFromSourceToDestination (String[] args, File result, Packer p) throws IOException {
         try (final RandomAccessFile raf = new RandomAccessFile(args[0], "r");
-        final FileOutputStream fos = new FileOutputStream(args[1]);
-        final BufferedOutputStream bos = new BufferedOutputStream(fos);
+        final BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(args[1]));
         final DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(result)))) {
             final int LONG_SIZE = 8;
             long l;
