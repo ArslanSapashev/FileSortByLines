@@ -1,7 +1,7 @@
 package com.sapashev;
 
 import java.io.*;
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * Combines all sorted arrays of meta information about lines in one final file.
@@ -72,22 +72,45 @@ public class Combiner {
                 }
             } while ((dis_1_entries > 0 || l1 != EMPTY) && (dis_2_entries > 0 || l2 != EMPTY));
 
-            if (dis_1_entries <= 0 && dis_2_entries >= 0){
-                if (l2 != EMPTY) dos.writeLong(l2);
-                byte[] buffer = new byte[dis_2.available()];
-                dis_2.read(buffer);
-                dos.write(buffer);
-            }
-            if(dis_1_entries >= 0 && dis_2_entries <= 0){
-                if (l1 != EMPTY) dos.writeLong(l1);
-                byte[] buffer = new byte[dis_1.available()];
-                dis_1.read(buffer);
-                dos.write(buffer);
-            }
+            copyTheRest(dos, dis_1, dis_2, EMPTY, l1, l2, dis_1_entries, dis_2_entries);
         }
         return f;
     }
 
+    /**
+     * Selects InputStream from which to copy the rest bytes to the OutputStream.
+     * Will be invoked when all long values from one file retrieved and another one still has long values.
+     * @param dos - target file stream.
+     * @param dis_1 - first file.
+     * @param dis_2 - second file.
+     * @param EMPTY - mark that value is already read.
+     * @param l1 - value from first file.
+     * @param l2 - value from second file.
+     * @param dis_1_entries - number of values are still unread in the first file.
+     * @param dis_2_entries - number of values are still unread in the second file.
+     * @throws IOException
+     */
+    private void copyTheRest (DataOutputStream dos, DataInputStream dis_1, DataInputStream dis_2, long EMPTY, long l1, long l2, long dis_1_entries, long dis_2_entries) throws IOException {
+        if (dis_1_entries <= 0 && dis_2_entries >= 0){
+            copyAllBytes(dos, dis_2, EMPTY, l2);
+        }
+        if(dis_1_entries >= 0 && dis_2_entries <= 0){
+            copyAllBytes(dos, dis_1, EMPTY, l1);
+        }
+    }
 
-
+    /**
+     * Copies all rest bytes from source file to the target file.
+     * @param dos - target file.
+     * @param dis - source file.
+     * @param EMPTY - mark that value is already read.
+     * @param l - value which is already read from source file, but not yet written to the target file.
+     * @throws IOException
+     */
+    private void copyAllBytes (DataOutputStream dos, DataInputStream dis, long EMPTY, long l) throws IOException {
+        if (l != EMPTY) dos.writeLong(l);
+        byte[] buffer = new byte[dis.available()];
+        int readBytes = dis.read(buffer);
+        dos.write(Arrays.copyOfRange(buffer,0, readBytes));
+    }
 }
