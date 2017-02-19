@@ -71,7 +71,6 @@ public class Combiner {
                     l2 = EMPTY;
                 }
             } while ((dis_1_entries > 0 || l1 != EMPTY) && (dis_2_entries > 0 || l2 != EMPTY));
-
             copyTheRest(dos, dis_1, dis_2, EMPTY, l1, l2, dis_1_entries, dis_2_entries);
         }
         return f;
