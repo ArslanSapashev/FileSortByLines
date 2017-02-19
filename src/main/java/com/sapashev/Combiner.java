@@ -48,7 +48,7 @@ public class Combiner {
             DataInputStream dis_1 = new DataInputStream(new BufferedInputStream(new FileInputStream(first)));
             DataInputStream dis_2 = new DataInputStream(new BufferedInputStream(new FileInputStream(second)))){
 
-            final long EMPTY = Long.MIN_VALUE;
+            final long EMPTY = Long.MAX_VALUE;
             long l1 = EMPTY;
             long l2 = EMPTY;
             long dis_1_entries = dis_1.available() / 8;

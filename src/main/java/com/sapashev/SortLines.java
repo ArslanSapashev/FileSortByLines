@@ -9,6 +9,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * Sorts file by lines length.
@@ -74,7 +75,7 @@ public class SortLines {
         }
         temps.forEach(File::deleteOnExit);
         LOG.info("Reducing started at {}", LocalTime.now());
-        File result = reduce(temps, packer);
+        File result = r2(temps, packer);
         LOG.info("Reducing finished at {}", LocalTime.now());
         LOG.info("Copying to desti started at {}", LocalTime.now());
         copyFromSourceToDestination(args, result, packer);
@@ -146,5 +147,62 @@ public class SortLines {
      */
     public class Position {
         long position;
+    }
+
+    private File r2 (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
+        //int concurrencyLevel = Runtime.getRuntime().availableProcessors();
+        int concurrencyLevel = 8;
+        ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
+        File f;
+
+        if(temps.size() >= 4){
+            int num = temps.size() / concurrencyLevel;
+            List<List<File>> files = new ArrayList<>(concurrencyLevel);
+            for(int i = 0; i < concurrencyLevel; i++){
+                List<File> list = new ArrayList<>(num);
+                int y = 0;
+                while (y < num && !temps.isEmpty()){
+                    list.add(temps.remove(0));
+                    y++;
+                }
+                files.add(list);
+            }
+            if(!temps.isEmpty()){
+                while (!temps.isEmpty()){
+                    files.get(files.size() - 1).add(temps.remove(0));
+                }
+            }
+
+            List<Future<File>> total = new ArrayList<>();
+            for (List<File> l : files){
+                total.add(service.submit(new Reducer(l, p)));
+            }
+
+            List<File> results = new ArrayList<>();
+            for(Future<File> fut : total){
+                results.add(fut.get());
+            }
+
+            f = reduce(results, p);
+            service.shutdownNow();
+        } else {
+            f = reduce(temps, p);
+        }
+        return f;
+    }
+
+    private class Reducer implements Callable<File> {
+        private final List<File> list;
+        private final Packer p;
+
+        public Reducer(List<File> list, Packer p){
+            this.list = list;
+            this.p = p;
+        }
+
+        @Override
+        public File call () throws Exception {
+            return reduce(list, p);
+        }
     }
 }
