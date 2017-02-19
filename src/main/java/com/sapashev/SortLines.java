@@ -7,7 +7,6 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -47,7 +46,7 @@ public class SortLines {
         boolean isEOF = false;
         int charSize = Charset.forName(args[2]).encode("s").limit();
         int bufferSize = Integer.parseInt(args[3]);
-        long[] metas = new long[bufferSize];
+        long[] metas;
         Reader reader = new Reader();
         Sorter sorter = new Sorter();
         Packer packer = new Packer(Integer.parseInt(args[4]), Integer.parseInt(args[5]));
@@ -58,19 +57,16 @@ public class SortLines {
 
         try(BufferedReader br = new BufferedReader(isr)){
             while (!isEOF){
+                List<Line> lines = new ArrayList<>(bufferSize);
                 LOG.info("File read started at {}", LocalTime.now());
-                isEOF = reader.readFromFileTo(metas, charSize, packer, br, counter, position);
+                isEOF = reader.read2(lines, charSize, bufferSize, br, counter, position);
                 LOG.info("File read finished at {}", LocalTime.now());
-                LOG.info("Array trunking started at {}", LocalTime.now());
-                metas = Arrays.copyOfRange(metas,0,counter.counter);
-                LOG.info("Array trunking finished at {}", LocalTime.now());
                 LOG.info("Array sorting started at {}", LocalTime.now());
-                sorter.quickSort(metas, 0, metas.length-1, packer);
+                metas = sorter.quik2(lines, packer);
                 LOG.info("Array sorting finished at {}", LocalTime.now());
                 LOG.info("Saving to temp file started at {}", LocalTime.now());
                 temps.add(combiner.saveToTempFile(metas));
                 LOG.info("Saving to temp file finished at {}", LocalTime.now());
-                metas = Arrays.copyOf(metas, bufferSize);
             }
         }
         temps.forEach(File::deleteOnExit);
@@ -149,6 +145,14 @@ public class SortLines {
         long position;
     }
 
+    /**
+     * Reduces (combines) temp files to final one. Which contains all pairs (position:line length) in sorted manner.
+     * After each iteration of merging content of files, file from "temps" list is about to be deleted.
+     * @param temps - list of temp files to combine.
+     * @param p - packer object which packs and unpacks pairs (position:line length)from packed long value.
+     * @return - final combined file, which contains sorted long values from all other temp files.
+     * @throws IOException
+     */
     private File r2 (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
         int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
         ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
@@ -190,6 +194,9 @@ public class SortLines {
         return f;
     }
 
+    /**
+     * Implements Callable to sort'n'merge temporary files.
+     */
     private class Reducer implements Callable<File> {
         private final List<File> list;
         private final Packer p;

@@ -1,5 +1,9 @@
 package com.sapashev;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * Sorts array by quick sort algorithm.
  * @author Arslan Sapashev
@@ -7,41 +11,13 @@ package com.sapashev;
  * @version 1.0
  */
 public class Sorter {
-    public void quickSort (long[] metas, int start, int end, Packer p) {
-        if (start < end){
-            int leftPointer = start;
-            int rightPointer = end;
-            int middle = leftPointer - (leftPointer - rightPointer) / 2;
-            int middleValue = p.getLength(metas[middle]);
-            while (leftPointer < rightPointer) {
-                while (leftPointer < middle && (p.getLength(metas[leftPointer]) <= middleValue)) {
-                    leftPointer++;
-                }
-                while (rightPointer > middle && (middleValue) <= p.getLength(metas[rightPointer])) {
-                    rightPointer--;
-                }
-                if (leftPointer < rightPointer) {
-                    swap(metas, leftPointer, rightPointer);
-                    if (leftPointer == middle)
-                        middle = rightPointer;
-                    else if (rightPointer == middle)
-                        middle = leftPointer;
-                }
-            }
-            quickSort(metas, start, middle, p);
-            quickSort(metas, middle+1, end, p);
-        }
-    }
 
-    /**
-     * Swaps (changes) position of two values in array.
-     * @param metas - source array.
-     * @param i - first value.
-     * @param j - second value;
-     */
-    private void swap (long[] metas, int i, int j) {
-        long temp = metas[i];
-        metas[i] = metas[j];
-        metas[j] = temp;
+    public long[] quik2 (List<Line> lines, Packer packer){
+        List<Line> result = lines.parallelStream().sorted(Comparator.comparing(Line::length)).collect(Collectors.toList());
+        long[] metas = new long[result.size()];
+        for(int i = 0; i < metas.length; i++){
+            metas[i] = packer.packToLong(result.get(i).length(), result.get(i).position());
+        }
+        return metas;
     }
 }
