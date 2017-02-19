@@ -150,8 +150,7 @@ public class SortLines {
     }
 
     private File r2 (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
-        //int concurrencyLevel = Runtime.getRuntime().availableProcessors();
-        int concurrencyLevel = 8;
+        int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
         ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
         File f;
 
