@@ -41,166 +41,53 @@ public class Combiner {
      * @return - final file which contains merged values of both temp files.
      * @throws IOException
      */
-    public File mergeToOne (File first, File second, Packer p) throws IOException{
+    public File mergeToOne (File first, File second, Packer p) throws IOException {
         File f = File.createTempFile("arsMERGE_", null);
         f.deleteOnExit();
-        try(DataOutputStream result = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
-            PushbackInputStream source1 = new PushbackInputStream((new BufferedInputStream(new FileInputStream(first))), 8192);
-            PushbackInputStream source2 = new PushbackInputStream((new BufferedInputStream(new FileInputStream(second))), 8192)
-        ) {
-            boolean isSourceEmpty = false;
-            ByteBuffer bb = ByteBuffer.allocate(8);
+        try(DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
+            DataInputStream dis_1 = new DataInputStream(new BufferedInputStream(new FileInputStream(first)));
+            DataInputStream dis_2 = new DataInputStream(new BufferedInputStream(new FileInputStream(second)))){
 
-            while (!isSourceEmpty){
-                long l1 = getLongFrom(source1);
-                long l2 = getLongFrom(source2);
+            final long EMPTY = Long.MIN_VALUE;
+            long l1 = EMPTY;
+            long l2 = EMPTY;
+            long dis_1_entries = dis_1.available() / 8;
+            long dis_2_entries = dis_2.available() / 8;
 
-                if(l1 == -1){
-                    isSourceEmpty = true;
-                    if(l2 != -1){
-                        result.writeLong(l2);
-                    }
-                    copyRestFrom(source2, result);
-                } else if(l2 == -1){
-                    isSourceEmpty = true;
-                    if(l1 != -1){
-                        result.writeLong(l1);
-                    }
-                    copyRestFrom(source1, result);
-                } else {
-                    writeTheLess(p, result, source1, source2, bb, l1, l2);
+            do{
+                if(l1 == EMPTY && dis_1_entries > 0){
+                    l1 = dis_1.readLong();
+                    --dis_1_entries;
                 }
+                if(l2 == EMPTY && dis_2_entries > 0){
+                    l2 = dis_2.readLong();
+                    --dis_2_entries;
+                }
+                if(p.getLength(l1) < p.getLength(l2)){
+                    dos.writeLong(l1);
+                    l1 = EMPTY;
+                } else {
+                    dos.writeLong(l2);
+                    l2 = EMPTY;
+                }
+            } while ((dis_1_entries > 0 || l1 != EMPTY) && (dis_2_entries > 0 || l2 != EMPTY));
+
+            if (dis_1_entries <= 0 && dis_2_entries >= 0){
+                if (l2 != EMPTY) dos.writeLong(l2);
+                byte[] buffer = new byte[dis_2.available()];
+                dis_2.read(buffer);
+                dos.write(buffer);
             }
-        } return f;
-    }
-
-    /**
-     * Writes to the compound file, the less value among two values read form both of files.
-     * @param p - packer object which packs and unpacks pairs (position:line length)from packed long value.
-     * @param result - reference to the DataOutputStream to which writes sorted long values;
-     * @param source1 - reference to the one of the files;
-     * @param source2 - reference to the second one;
-     * @param bb - byte buffer to store long value to be pushed back if it was greater than another one.
-     * @param l1 - long value to be compared and stored if it less than another one, read from first file.
-     * @param l2 - long value to be compared and stored if it less than another one, read from second file.
-     * @throws IOException
-     */
-    private void writeTheLess (Packer p, DataOutputStream result, PushbackInputStream source1, PushbackInputStream source2, ByteBuffer bb, long l1, long l2) throws IOException {
-        if(p.getLength(l1) <= p.getLength(l2)){
-            result.writeLong(l1);
-            source2.unread(bb.putLong(l2).array());
-            bb.clear();
-        } else {
-            result.writeLong(l2);
-            source1.unread(bb.putLong(l1).array());
-            bb.clear();
-        }
-    }
-
-    /**
-     * In case of content of the one of files eliminates before content of another one,
-     * it copies the rest of the file to the final compound file.
-     * @param source - file which contains the long values to be copied to the final file.
-     * @param result - result (compound)file.
-     * @throws IOException
-     */
-    private void copyRestFrom(PushbackInputStream source, DataOutputStream result) throws IOException{
-        while (source.available() >= 8){
-            result.writeLong(getLongFrom(source));
-        }
-    }
-
-    /**
-     * Reads next long value from the source stream, if number of files read from the stream are less then 8
-     * it returns -1, which mars the end of stream (file).
-     * @param source - source stream (file).
-     * @return - next long value which has been read from source stream;
-     * @throws IOException
-     */
-    private long getLongFrom (PushbackInputStream source) throws IOException {
-        long l;
-        byte[] array = new byte[8];
-        if(source.read(array, 0, 8) >= 8){
-            l = ByteBuffer.wrap(array).getLong();
-        } else {
-            l = -1;
-        }
-        return l;
-    }
-
-    /**
-     * Another one version of mergeToOne method. Works a little bit slowly than mergeToOne method.
-     * @param first - first source file.
-     * @param second - second source file.
-     * @param p - packer object which packs and unpacks pairs (position:line length)from packed long value.
-     * @return - compound file.
-     * @throws IOException
-     */
-    public File mergeV2(File first, File second, Packer p) throws IOException {
-        File f = File.createTempFile("arsMERGE_V2_", null);
-        f.deleteOnExit();
-        try(DataInputStream dis1 = new DataInputStream(new BufferedInputStream(new FileInputStream(first)));
-            DataInputStream dis2 = new DataInputStream(new BufferedInputStream(new FileInputStream(second)));
-            DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)))){
-
-            Getter getter = new Getter(dis1, dis2, p);
-            long l;
-            while ((l = getter.getNextLessLong()) != -1){
-                dos.writeLong(l);
+            if(dis_1_entries >= 0 && dis_2_entries <= 0){
+                if (l1 != EMPTY) dos.writeLong(l1);
+                byte[] buffer = new byte[dis_1.available()];
+                dis_1.read(buffer);
+                dos.write(buffer);
             }
         }
         return f;
     }
 
-    /**
-     * Inner class that encapsulates process of choosing the less value from two sources.
-     */
-    private class Getter{
-        private final DataInputStream dis1;
-        private final DataInputStream dis2;
-        private final Packer p;
-        private long l1 = -1L;
-        private long l2 = -1L;
-        private long result = -1L;
-        private DIS chosen = DIS.NONE;
 
-        public Getter(DataInputStream dis1, DataInputStream dis2, Packer p){
-            this.dis1 = dis1;
-            this.dis2 = dis2;
-            this.p = p;
-        }
-
-        /**
-         * Compares two long values based on the packed length of line value, and returns the less one.
-         * It reads long values from sources in value-by-value manner, and only if the previous value read
-         * from the particular source stream was returned as the less one
-         * (in fact it means that it was written to the compound file).
-         * @return - the less long value among two value;
-         * @throws IOException
-         */
-        public long getNextLessLong () throws IOException{
-            result = -1L;
-
-            if(dis1.available() >= 8 && (chosen == DIS.FIRST || chosen == DIS.NONE.NONE)) {
-                l1 = dis1.readLong();
-            }
-            if(dis2.available() >= 8 && (chosen == DIS.SECOND || chosen == DIS.NONE)) {
-                l2 = dis2.readLong();
-            }
-            if(l1 != -1L && (l2 == -1L || p.getLength(l1) <= p.getLength(l2))){
-                result = l1;
-                chosen = DIS.FIRST;
-                l1 = -1L;
-            } else if (l2 != -1L){
-                result = l2;
-                chosen = DIS.SECOND;
-                l2 = -1L;
-            }
-            return result;
-        }
-    }
-    private enum DIS {
-        FIRST, SECOND, NONE;
-    }
 
 }
