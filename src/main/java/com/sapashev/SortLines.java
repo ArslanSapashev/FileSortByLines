@@ -59,10 +59,10 @@ public class SortLines {
             while (!isEOF){
                 List<Line> lines = new ArrayList<>(bufferSize);
                 LOG.info("File read started at {}", LocalTime.now());
-                isEOF = reader.read2(lines, charSize, bufferSize, br, counter, position);
+                isEOF = reader.readFromFileTo(lines, charSize, bufferSize, br, counter, position);
                 LOG.info("File read finished at {}", LocalTime.now());
                 LOG.info("Array sorting started at {}", LocalTime.now());
-                metas = sorter.quik2(lines, packer);
+                metas = sorter.sort(lines, packer);
                 LOG.info("Array sorting finished at {}", LocalTime.now());
                 LOG.info("Saving to temp file started at {}", LocalTime.now());
                 temps.add(combiner.saveToTempFile(metas));

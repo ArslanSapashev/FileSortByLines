@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
  */
 public class Sorter {
 
-    public long[] quik2 (List<Line> lines, Packer packer){
+    public long[] sort (List<Line> lines, Packer packer){
         List<Line> result = lines.parallelStream().sorted(Comparator.comparing(Line::length)).collect(Collectors.toList());
         long[] metas = new long[result.size()];
         for(int i = 0; i < metas.length; i++){
