@@ -155,26 +155,49 @@ public class SortLines {
      * @throws IOException
      */
     private File createResultFile (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
-        int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
-        ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
         File f;
-
         if(temps.size() >= 4){
+            int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
+            ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
             List<List<File>> files = splitList(temps, concurrencyLevel);
-            List<Future<File>> total = new ArrayList<>();
-            for (List<File> l : files){
-                total.add(service.submit(new Reducer(l, p)));
-            }
-            List<File> results = new ArrayList<>();
-            for(Future<File> fut : total){
-                results.add(fut.get());
-            }
+            List<Future<File>> total = runParallelReducing(p, service, files);
+            List<File> results = resultParallelReducing(total);
             f = reduce(results, p);
             service.shutdownNow();
         } else {
             f = reduce(temps, p);
         }
         return f;
+    }
+
+    /**
+     * Creates list of resulting files retrieved from each thread.
+     * This resulting list will be reduced on a final phase.
+     * @param total - futures returned by ExecutorService for each thread result.
+     * @return list of resulting files.
+     * @throws InterruptedException
+     * @throws ExecutionException
+     */
+    private List<File> resultParallelReducing (List<Future<File>> total) throws InterruptedException, ExecutionException {
+        List<File> results = new ArrayList<>();
+        for(Future<File> fut : total){
+            results.add(fut.get());
+        }
+        return results;
+    }
+
+    /**
+     * Runs concurrent processing (merge sort and file reducing) of each sublist.
+     * @param p - packer to pack/unpack long values.
+     * @param service - executor service to run all threads.
+     * @return - list of future objects which will return result of concurrent processing of temp files.
+     */
+    private List<Future<File>> runParallelReducing (Packer p, ExecutorService service, List<List<File>> files) {
+        List<Future<File>> listOfList = new ArrayList<>();
+        for (List<File> l : files){
+            listOfList.add(service.submit(new Reducer(l, p)));
+        }
+        return listOfList;
     }
 
     /**
