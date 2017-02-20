@@ -71,7 +71,7 @@ public class SortLines {
         }
         temps.forEach(File::deleteOnExit);
         LOG.info("Reducing started at {}", LocalTime.now());
-        File result = r2(temps, packer);
+        File result = createResultFile(temps, packer);
         LOG.info("Reducing finished at {}", LocalTime.now());
         LOG.info("Copying to desti started at {}", LocalTime.now());
         copyFromSourceToDestination(args, result, packer);
@@ -146,52 +146,61 @@ public class SortLines {
     }
 
     /**
-     * Reduces (combines) temp files to final one. Which contains all pairs (position:line length) in sorted manner.
-     * After each iteration of merging content of files, file from "temps" list is about to be deleted.
+     * Temps list will be divided to the some sublists according to the concurrency level.
+     * After that, each thread applies merge sort to the each sublist concurrently.
+     * Resulting sublists will be megre sorted to the final file.
      * @param temps - list of temp files to combine.
      * @param p - packer object which packs and unpacks pairs (position:line length)from packed long value.
      * @return - final combined file, which contains sorted long values from all other temp files.
      * @throws IOException
      */
-    private File r2 (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
+    private File createResultFile (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
         int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
         ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
         File f;
 
         if(temps.size() >= 4){
-            int num = temps.size() / concurrencyLevel;
-            List<List<File>> files = new ArrayList<>(concurrencyLevel);
-            for(int i = 0; i < concurrencyLevel; i++){
-                List<File> list = new ArrayList<>(num);
-                int y = 0;
-                while (y < num && !temps.isEmpty()){
-                    list.add(temps.remove(0));
-                    y++;
-                }
-                files.add(list);
-            }
-            if(!temps.isEmpty()){
-                while (!temps.isEmpty()){
-                    files.get(files.size() - 1).add(temps.remove(0));
-                }
-            }
-
+            List<List<File>> files = splitList(temps, concurrencyLevel);
             List<Future<File>> total = new ArrayList<>();
             for (List<File> l : files){
                 total.add(service.submit(new Reducer(l, p)));
             }
-
             List<File> results = new ArrayList<>();
             for(Future<File> fut : total){
                 results.add(fut.get());
             }
-
             f = reduce(results, p);
             service.shutdownNow();
         } else {
             f = reduce(temps, p);
         }
         return f;
+    }
+
+    /**
+     * Splits raw list to the sublists according to concurrency level.
+     * @param temps - raw list (list of temp files to merge).
+     * @param concurrencyLevel - how much threads will be process sublists concurrently.
+     * @return list of lists of temp files.
+     */
+    private List<List<File>> splitList (List<File> temps, int concurrencyLevel) {
+        int num = temps.size() / concurrencyLevel;
+        List<List<File>> files = new ArrayList<>(concurrencyLevel);
+        for(int i = 0; i < concurrencyLevel; i++){
+            List<File> list = new ArrayList<>(num);
+            int y = 0;
+            while (y < num && !temps.isEmpty()){
+                list.add(temps.remove(0));
+                y++;
+            }
+            files.add(list);
+        }
+        if(!temps.isEmpty()){
+            while (!temps.isEmpty()){
+                files.get(files.size() - 1).add(temps.remove(0));
+            }
+        }
+        return files;
     }
 
     /**
