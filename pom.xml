@@ -22,7 +22,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.sapashev.FileSortByLines</mainClass>
+                            <mainClass>com.sapashev.SortLines</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -43,6 +43,7 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.22</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 </project>

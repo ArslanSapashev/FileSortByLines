@@ -1,11 +1,7 @@
 package com.sapashev;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.nio.charset.Charset;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -17,10 +13,11 @@ import java.util.concurrent.*;
  * @version 1.0
  */
 public class SortLines {
-    final Logger LOG = LoggerFactory.getLogger(SortLines.class);
 
     public static void main (String[] args) throws Exception {
+        long start = System.currentTimeMillis();
         new SortLines().start(args);
+        System.out.println(System.currentTimeMillis() - start);
     }
 
     /**
@@ -54,64 +51,21 @@ public class SortLines {
         List<File> temps = new ArrayList<>();
         Counter counter = new Counter();
         Position position = new Position();
+        Copier copier = new Copier();
 
         try(BufferedReader br = new BufferedReader(isr)){
             while (!isEOF){
                 List<Line> lines = new ArrayList<>(bufferSize);
-                LOG.info("File read started at {}", LocalTime.now());
                 isEOF = reader.readFromFileTo(lines, charSize, bufferSize, br, counter, position);
-                LOG.info("File read finished at {}", LocalTime.now());
-                LOG.info("Array sorting started at {}", LocalTime.now());
                 metas = sorter.sort(lines, packer);
-                LOG.info("Array sorting finished at {}", LocalTime.now());
-                LOG.info("Saving to temp file started at {}", LocalTime.now());
                 temps.add(combiner.saveToTempFile(metas));
-                LOG.info("Saving to temp file finished at {}", LocalTime.now());
             }
         }
         temps.forEach(File::deleteOnExit);
-        LOG.info("Reducing started at {}", LocalTime.now());
         File result = createResultFile(temps, packer);
-        LOG.info("Reducing finished at {}", LocalTime.now());
-        LOG.info("Copying to desti started at {}", LocalTime.now());
-        copyFromSourceToDestination(args, result, packer);
-        LOG.info("Copying to desti finished at {}", LocalTime.now());
+        copier.directCopy(args, new File(args[0]), result, packer);
     }
 
-    /**
-     * Copies lines from source file to destination one.
-     * To the end of each line appends bytes of "line.separator" property
-     * @param args - args of program
-     * @param result - temporary file which contains sorted long values (defines pair of position:line length)
-     * @param p - packer object which packs and unpacks pairs (position:line length)from packed long value
-     * @throws IOException
-     */
-    private void copyFromSourceToDestination (String[] args, File result, Packer p) throws IOException {
-        try (final RandomAccessFile raf = new RandomAccessFile(args[0], "r");
-        final BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(args[1]));
-        final DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(result)))) {
-            final int LONG_SIZE = 8;
-            long l;
-            int numBytes;
-            long position;
-            int charSize = Charset.forName(args[2]).encode("s").limit();
-            byte[] separator = Charset.forName(args[2]).encode(System.getProperty("line.separator")).array();
-
-            long limit = result.length() / LONG_SIZE;
-            for(int i = 0; i < limit; i++){
-                l = dis.readLong();
-                numBytes = p.getLength(l) * charSize;
-                position = p.getPosition(l);
-                raf.seek(position);
-                byte[] buffer = new byte[numBytes];
-                if (raf.read(buffer) == -1) {
-                    throw new EOFException(String.format("Unexpected end of file at position %s", position));
-                }
-                bos.write(buffer);
-                bos.write(separator);
-            }
-        }
-    }
 
     /**
      * Reduces (combines) temp files to final one. Which contains all pairs (position:line length) in sorted manner.
@@ -157,7 +111,7 @@ public class SortLines {
     private File createResultFile (List<File> temps, Packer p) throws IOException, InterruptedException, ExecutionException {
         File f;
         if(temps.size() >= 4){
-            int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 2;
+            int concurrencyLevel = Runtime.getRuntime().availableProcessors() * 3;
             ExecutorService service = Executors.newFixedThreadPool(concurrencyLevel);
             List<List<File>> files = splitList(temps, concurrencyLevel);
             List<Future<File>> total = runParallelReducing(p, service, files);
@@ -167,6 +121,7 @@ public class SortLines {
         } else {
             f = reduce(temps, p);
         }
+        temps.forEach(File::delete);
         return f;
     }
 
