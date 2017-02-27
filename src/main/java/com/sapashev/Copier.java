@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Copies lines from source to destination.
@@ -26,12 +28,12 @@ public class Copier {
      */
     public Path directCopy (String[] args, File source, File reference, Packer p) throws IOException {
         Path result = Files.createFile(Paths.get(args[1])).toAbsolutePath();
-        try(RandomAccessFile raf = new RandomAccessFile(source, "rw");
-            FileChannel fcRef = FileChannel.open(reference.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+        try(RandomAccessFile raf = new RandomAccessFile(source, "r");
+            FileChannel fcRef = FileChannel.open(reference.toPath(), StandardOpenOption.READ);
             FileChannel fcResult = FileChannel.open(result, StandardOpenOption.READ, StandardOpenOption.WRITE)){
 
-            MappedByteBuffer src = raf.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, raf.length());
-            MappedByteBuffer ref = fcRef.map(FileChannel.MapMode.READ_WRITE, 0, fcRef.size());
+            MappedByteBuffer src = raf.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, raf.length());
+            MappedByteBuffer ref = fcRef.map(FileChannel.MapMode.READ_ONLY, 0, fcRef.size());
             MappedByteBuffer res = fcResult.map(FileChannel.MapMode.READ_WRITE, 0, raf.length() + 2);
 
             byte[] bb = new byte[10000];
@@ -49,5 +51,20 @@ public class Copier {
             }
         }
         return result;
+    }
+
+    private List<MappedByteBuffer> bufferList (File source) throws IOException {
+        List<MappedByteBuffer> list = new ArrayList<>();
+        long numBuffers =   (source.length() % Integer.MAX_VALUE) > 0 ?
+                            (source.length() / Integer.MAX_VALUE) + 1 :
+                            (source.length() / Integer.MAX_VALUE);
+
+        for(int i = 0; i < numBuffers; i++){
+            RandomAccessFile raf = new RandomAccessFile(source, "rw");
+            long position = i * Integer.MAX_VALUE;
+            MappedByteBuffer buf = raf.getChannel().map(FileChannel.MapMode.READ_WRITE, position, Integer.MAX_VALUE);
+            list.add(buf);
+        }
+        return list;
     }
 }
