@@ -14,6 +14,7 @@ import java.util.List;
  */
 public class Reader {
     private final int SEPARATOR = ByteBuffer.wrap(System.getProperty("line.separator").getBytes()).limit();
+    //TODO define getBytes encoding as entry of argument list
 
     /**
      * Fills metas array with line position and length data.
@@ -33,7 +34,9 @@ public class Reader {
             if(((line = br.readLine()) != null)){
                 lines.add(new Line(p.position, line.length()));
                 counter++;
-                p.position = p.position + ((line.length() + SEPARATOR) * charSize);
+                //TODO choose one of them
+                //p.position = p.position + ((line.length() + SEPARATOR) * charSize);
+                p.position = p.position + ((line.length() * charSize) + SEPARATOR);
             } else {
                 isEOF = true;
                 break;

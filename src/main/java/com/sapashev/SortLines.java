@@ -63,7 +63,10 @@ public class SortLines {
         }
         temps.forEach(File::deleteOnExit);
         File result = createResultFile(temps, packer);
-        copier.directCopy(args, new File(args[0]), result, packer);
+        //copier.directCopy(args, new File(args[0]), result, packer);
+        //copier.dispatcher(args, result, packer);
+        copier.dis2(args, result, packer);
+        result.deleteOnExit();
     }
 
 
