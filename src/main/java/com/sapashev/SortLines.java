@@ -2,6 +2,8 @@ package com.sapashev;
 
 import java.io.*;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -63,9 +65,11 @@ public class SortLines {
         }
         temps.forEach(File::deleteOnExit);
         File result = createResultFile(temps, packer);
-        //copier.directCopy(args, new File(args[0]), result, packer);
-        //copier.dispatcher(args, result, packer);
-        copier.dis2(args, result, packer);
+        if(Files.size(Paths.get(args[0])) < Integer.MAX_VALUE){
+            copier.directCopy(args, result, packer);
+        } else {
+            copier.dis2(args, result, packer);
+        }
         result.deleteOnExit();
     }
 
@@ -124,7 +128,7 @@ public class SortLines {
         } else {
             f = reduce(temps, p);
         }
-        temps.forEach(File::delete);
+        temps.forEach(File::deleteOnExit);
         return f;
     }
 

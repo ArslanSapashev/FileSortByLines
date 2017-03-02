@@ -19,6 +19,7 @@ import java.util.Map;
  * @version 1.0
  */
 public class Copier {
+    int boundary = Integer.MAX_VALUE;
     /**
      * Copies lines from source file to destination using direct byte buffers of NIO.
      * @param args - argument list
@@ -28,9 +29,9 @@ public class Copier {
      * @return - result file.
      * @throws IOException
      */
-    public Path directCopy (String[] args, File source, File reference, Packer p) throws IOException {
+    public Path directCopy (String[] args, File reference, Packer p) throws IOException {
         Path result = Files.createFile(Paths.get(args[1])).toAbsolutePath();
-        try(RandomAccessFile raf = new RandomAccessFile(source, "r");
+        try(RandomAccessFile raf = new RandomAccessFile(args[0], "r");
             FileChannel fcRef = FileChannel.open(reference.toPath(), StandardOpenOption.READ);
             FileChannel fcResult = FileChannel.open(result, StandardOpenOption.READ, StandardOpenOption.WRITE)){
 
@@ -58,19 +59,19 @@ public class Copier {
     private List<MappedByteBuffer> sourceBuffers (File source) throws IOException {
         List<MappedByteBuffer> list = new ArrayList<>();
         MappedByteBuffer buf;
-        long numBuffers =   (source.length() % Integer.MAX_VALUE) > 0 ?
-                            (source.length() / Integer.MAX_VALUE) + 1 :
-                            (source.length() / Integer.MAX_VALUE);
+        long numBuffers =   (source.length() % boundary) > 0 ?
+                            (source.length() / boundary) + 1 :
+                            (source.length() / boundary);
 
         try(RandomAccessFile raf = new RandomAccessFile(source, "r")){
             for(int i = 0; i < numBuffers; i++){
-                long position = i * Integer.MAX_VALUE;
+                long position = (long)i * (long)boundary;
                 int length;
-                long chunk = (i + 1) * (long)Integer.MAX_VALUE;
+                long chunk = (i + 1) * (long)boundary;
                 if(chunk > raf.length()){
-                    length = (int)(raf.length() % Integer.MAX_VALUE);
+                    length = (int)(raf.length() % boundary);
                 } else {
-                    length = Integer.MAX_VALUE;
+                    length = boundary;
                 }
                 buf = raf.getChannel().map(FileChannel.MapMode.READ_ONLY, position, length);
                 list.add(buf);
@@ -85,8 +86,8 @@ public class Copier {
         try(FileChannel fc = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE)){
             MappedByteBuffer r;
             for(int i = 0; i < sources.size(); i++){
-                long position = i * (long)Integer.MAX_VALUE;
-                if(sources.get(i).capacity() < Integer.MAX_VALUE){
+                long position = i * (long)boundary;
+                if(sources.get(i).capacity() < boundary){
                     r = fc.map(FileChannel.MapMode.READ_WRITE, position, sources.get(i).capacity() + 2);
                 } else {
                     r = fc.map(FileChannel.MapMode.READ_WRITE, position, sources.get(i).capacity());
@@ -95,58 +96,6 @@ public class Copier {
             }
         }
         return results;
-    }
-
-    public Path dispatcher(String[] args, File reference, Packer p) throws IOException {
-        List<MappedByteBuffer> sources = sourceBuffers(new File(args[0]));
-        Path result = Files.createFile(Paths.get(args[1])).toAbsolutePath();
-        byte[] separator = System.getProperty("line.separator").getBytes(args[2]);
-        try(FileChannel fcRef = FileChannel.open(reference.toPath(), StandardOpenOption.READ);
-            FileChannel fcResult = FileChannel.open(result, StandardOpenOption.READ, StandardOpenOption.WRITE)){
-
-            byte[] buf = new byte[10000];   //TODO change size to the length of longest line (last long in reference file)
-            long position;
-            int length;
-
-            MappedByteBuffer src;
-            MappedByteBuffer ref = fcRef.map(FileChannel.MapMode.READ_ONLY, 0, fcRef.size());
-
-            while(ref.hasRemaining()){
-                long value = ref.getLong();
-                position = p.getPosition(value);
-                int relativePosition = (int)(position % Integer.MAX_VALUE);
-                length = p.getLength(value);
-                int ordinal = (int)(position / Integer.MAX_VALUE);
-                src = sources.get(ordinal);
-                if((position + length) > (Integer.MAX_VALUE * (ordinal+1))){
-                    src.position(relativePosition);
-                    int firstChunk = Integer.MAX_VALUE - length;
-                    int secondChunk = length - firstChunk;
-                    //First part reading & writing
-                    src.get(buf, 0, firstChunk);
-                    ByteBuffer bb = ByteBuffer.wrap(buf, 0, firstChunk);
-                    fcResult.write(bb);
-                    //Second part reading & writing
-                    src = sources.get(ordinal + 1);
-                    src.position(0);
-                    src.get(buf, 0, secondChunk);
-                    bb = ByteBuffer.wrap(buf, 0, secondChunk);
-                    bb.compact();
-                    bb.put(separator);
-                    bb.flip();
-                    fcResult.write(bb);
-                } else {
-                    src.position(relativePosition);
-                    src.get(buf, 0, length);
-                    ByteBuffer bb = ByteBuffer.wrap(buf, 0, length);
-                    bb.compact();
-                    bb.put(separator);
-                    bb.flip();
-                    fcResult.write(bb);
-                }
-            }
-        }
-        return result;
     }
 
     public void dis2(String[] args, File reference, Packer p) throws IOException {
@@ -166,9 +115,9 @@ public class Copier {
             while(ref.hasRemaining()){
                 long value = ref.getLong();
                 position = p.getPosition(value);
-                int relativePosition = (int)(position % (long)Integer.MAX_VALUE);
+                int relativePosition = (int)(position % (long)boundary);
                 length = p.getLength(value);
-                int ordinal = (int)(position / Integer.MAX_VALUE);
+                int ordinal = (int)(position / boundary);
                 src = sources.get(ordinal);
 
                 if(((long)relativePosition + (long)length) > src.limit()){
@@ -179,7 +128,7 @@ public class Copier {
                     src.get(buf, 0, firstChunk);
                     res = putToResultBuffer(results, res, buf, firstChunk);
                     //second chunk read & writing
-                    src = sources.get(sources.indexOf(src) + 1);
+                    src = sources.get(ordinal + 1);
                     src.position(0);
                     src.get(buf, 0, secondChunk);
                     res = putToResultBuffer(results, res, buf, secondChunk);
@@ -197,15 +146,17 @@ public class Copier {
     }
 
     private MappedByteBuffer putToResultBuffer(List<MappedByteBuffer> results, MappedByteBuffer current, byte[] buffer, int length){
-        if(current.position() + (long)length > current.limit()){
-            int firstChunk = current.limit() - current.position();
-            current.put(buffer, 0, firstChunk);
-            current = results.get(results.indexOf(current) + 1);
-            current.position(0);
-            current.put(buffer, firstChunk, length - firstChunk);
+        MappedByteBuffer internal = current;
+        int index = results.indexOf(current);
+        if(internal.position() + (long)length > internal.limit()){
+            int firstChunk = internal.limit() - internal.position();
+            internal.put(buffer, 0, firstChunk);
+            internal = results.get(index + 1);
+            internal.position(0);
+            internal.put(buffer, firstChunk, length - firstChunk);
         } else {
-            current.put(buffer, 0, length);
+            internal.put(buffer, 0, length);
         }
-        return current;
+        return internal;
     }
 }
