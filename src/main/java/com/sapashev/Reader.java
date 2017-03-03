@@ -34,8 +34,6 @@ public class Reader {
             if(((line = br.readLine()) != null)){
                 lines.add(new Line(p.position, line.length()));
                 counter++;
-                //TODO choose one of them
-                //p.position = p.position + ((line.length() + SEPARATOR) * charSize);
                 p.position = p.position + ((line.length() * charSize) + SEPARATOR);
             } else {
                 isEOF = true;

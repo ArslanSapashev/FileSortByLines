@@ -19,11 +19,10 @@ import java.util.Map;
  * @version 1.0
  */
 public class Copier {
-    int boundary = Integer.MAX_VALUE;
+    int boundary = Integer.MAX_VALUE;       //buffer size
     /**
      * Copies lines from source file to destination using direct byte buffers of NIO.
      * @param args - argument list
-     * @param source - source file
      * @param reference - file with long values pointing to the beginning and length of each line.
      * @param p - packer to unpack position/length from the composed long value.
      * @return - result file.
@@ -50,12 +49,18 @@ public class Copier {
                 src.position(position);
                 src.get(bb, 0, length);
                 res.put(bb, 0, length);
-                res.put("\r\n".getBytes("UTF-8"));
+                res.put("\r\n".getBytes(args[2]));
             }
         }
         return result;
     }
 
+    /**
+     * Creates list of MappedByteBuffers mapped to the appropriate regions of source file.
+     * @param source - source file.
+     * @return list of MappedByteBuffers.
+     * @throws IOException
+     */
     private List<MappedByteBuffer> sourceBuffers (File source) throws IOException {
         List<MappedByteBuffer> list = new ArrayList<>();
         MappedByteBuffer buf;
@@ -80,6 +85,13 @@ public class Copier {
         return list;
     }
 
+    /**
+     * Creates list of MappedByteBuffers mapped to the consecutive regions of result file.
+     * @param args - command-line argument list.
+     * @param sources - list of MappedByteBuffers mapped to the source file.
+     * @return - list of MappedByteBuffers.
+     * @throws IOException
+     */
     private List<MappedByteBuffer> resultBuffers (String[] args,List<MappedByteBuffer> sources) throws IOException {
         List<MappedByteBuffer> results = new ArrayList<>(sources.size());
         Path file = Files.createFile(Paths.get(args[1])).toAbsolutePath();
@@ -98,6 +110,21 @@ public class Copier {
         return results;
     }
 
+    /**
+     * Retrieves lines from source file and saves it to the final one.
+     * Source and result files are divided to the appropriate number of MappedByteBuffers.
+     * On each iteration of while cycle:
+     * 1) long value are read from reference file, position and length of each line determined.
+     * 2) according to the offset of line in source file appropriate MappedByteBuffer will be chosen.
+     * 2.1) if line starts at one buffer and finishes at the next one, then line will be read in two steps
+     * 2.1.1) first chunk will be read from current source buffer
+     * 2.1.2) second chunk will be read from the next source buffer
+     * 3) each line will be saved to the current result MappedByteBuffer.
+     * @param args - command-line arguments.
+     * @param reference - file which contains sorted long values that are reference to lines in source file.
+     * @param p - packer object.
+     * @throws IOException
+     */
     public void dis2(String[] args, File reference, Packer p) throws IOException {
         List<MappedByteBuffer> sources = sourceBuffers(new File(args[0]));
         List<MappedByteBuffer> results = resultBuffers(args, sources);
@@ -115,14 +142,14 @@ public class Copier {
             while(ref.hasRemaining()){
                 long value = ref.getLong();
                 position = p.getPosition(value);
-                int relativePosition = (int)(position % (long)boundary);
+                int relativePosition = (int)(position % (long)boundary);                    //calculates position of line relative to the start of current buffer.
                 length = p.getLength(value);
-                int ordinal = (int)(position / boundary);
-                src = sources.get(ordinal);
+                int ordinal = (int)(position / boundary);                                   //calculates which buffer from list to choose.
+                src = sources.get(ordinal);                                                 //gets appropriate source MappedByteBuffer.
 
-                if(((long)relativePosition + (long)length) > src.limit()){
+                if(((long)relativePosition + (long)length) > src.limit()){                  //if line lies on boundary of two consecutive buffers.
                     src.position(relativePosition);
-                    int firstChunk = src.limit() - relativePosition;
+                    int firstChunk = src.limit() - relativePosition;                        //calculates length of first chunk which fits to the limit of current buffer.
                     int secondChunk = length - firstChunk;
                     //first chunk read & writing
                     src.get(buf, 0, firstChunk);
@@ -132,7 +159,7 @@ public class Copier {
                     src.position(0);
                     src.get(buf, 0, secondChunk);
                     res = putToResultBuffer(results, res, buf, secondChunk);
-                    res = putToResultBuffer(results, res, separator, separator.length);
+                    res = putToResultBuffer(results, res, separator, separator.length);     //saves line.separator at the end of line.
                 } else {
                     src.position(relativePosition);
                     src.get(buf, 0, length);
@@ -145,17 +172,28 @@ public class Copier {
         return;
     }
 
+    /**
+     * Saves bytes from byte buffer to the appropriate MappedByteBuffer mapped to the result file.
+     * In case of current buffer has no enough room to save whole line, the line will be divided into two chunks.
+     * First chunk will be written to the current buffer, and the second chunk will be written to the next buffer.
+     * In that case new buffer will be returned as new current.
+     * @param results - list of MappedByteBuffers mapped to the some regions of the result file.
+     * @param current - current MappedByteBuffer to which lines will be written in.
+     * @param buffer - byte buffer which contains lines to be written in.
+     * @param length - length of line.
+     * @return - current MappedByteBuffer.
+     */
     private MappedByteBuffer putToResultBuffer(List<MappedByteBuffer> results, MappedByteBuffer current, byte[] buffer, int length){
         MappedByteBuffer internal = current;
         int index = results.indexOf(current);
-        if(internal.position() + (long)length > internal.limit()){
-            int firstChunk = internal.limit() - internal.position();
-            internal.put(buffer, 0, firstChunk);
-            internal = results.get(index + 1);
-            internal.position(0);
-            internal.put(buffer, firstChunk, length - firstChunk);
+        if(internal.position() + (long)length > internal.limit()){              //if the line longer than the current buffer length.
+            int firstChunk = internal.limit() - internal.position();            //calculates first chunk length
+            internal.put(buffer, 0, firstChunk);                                // saves first chun to the current MappedByteBuffer
+            internal = results.get(index + 1);                                  // assigns to the internal reference to the next MappedByteBuffer
+            internal.position(0);                                               // sets position of new buffer to the 0;
+            internal.put(buffer, firstChunk, length - firstChunk);              // saves second chunk to the new buffer.
         } else {
-            internal.put(buffer, 0, length);
+            internal.put(buffer, 0, length);                                    //if line fits to the current buffer
         }
         return internal;
     }
