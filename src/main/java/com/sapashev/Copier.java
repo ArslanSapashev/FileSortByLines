@@ -131,7 +131,7 @@ public class Copier {
         byte[] separator = System.getProperty("line.separator").getBytes(args[2]);
         try(FileChannel fcRef = FileChannel.open(reference.toPath(), StandardOpenOption.READ)){
 
-            byte[] buf = new byte[10000];   //TODO change size to the length of longest line (last long in reference file)
+            byte[] buf = new byte[longestLineLength(reference, p)];
             long position;
             int length;
 
@@ -196,5 +196,12 @@ public class Copier {
             internal.put(buffer, 0, length);                                    //if line fits to the current buffer
         }
         return internal;
+    }
+
+    private int longestLineLength(File reference, Packer p) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(reference, "r")){
+            raf.seek(raf.length() - 8);
+            return p.getLength(raf.readLong());
+        }
     }
 }
