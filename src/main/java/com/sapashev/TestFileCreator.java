@@ -25,7 +25,7 @@ public class TestFileCreator {
         String sep = System.getProperty("line.separator");
 
         for(int i = 0; i < howMuchLines; i++){
-            for(int y = 0; y < (r.nextInt(maxLineLength)+25); y++){
+            for(int y = 0; y < (r.nextInt(maxLineLength) + 25); y++){
                 sb.append('a');
             }
             fr.write(String.format("%s%s", sb.toString(),sep));
