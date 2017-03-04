@@ -38,7 +38,7 @@ public class Copier {
             MappedByteBuffer ref = fcRef.map(FileChannel.MapMode.READ_ONLY, 0, fcRef.size());
             MappedByteBuffer res = fcResult.map(FileChannel.MapMode.READ_WRITE, 0, raf.length() + 2);
 
-            byte[] bb = new byte[10000];
+            byte[] bb = new byte[longestLineLength(reference, p)];
             int position = 0;
             int length = 0;
 
@@ -125,7 +125,7 @@ public class Copier {
      * @param p - packer object.
      * @throws IOException
      */
-    public void dis2(String[] args, File reference, Packer p) throws IOException {
+    public void multiBufferDirectCopy (String[] args, File reference, Packer p) throws IOException {
         List<MappedByteBuffer> sources = sourceBuffers(new File(args[0]));
         List<MappedByteBuffer> results = resultBuffers(args, sources);
         byte[] separator = System.getProperty("line.separator").getBytes(args[2]);

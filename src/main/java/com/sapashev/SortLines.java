@@ -68,7 +68,7 @@ public class SortLines {
         if(Files.size(Paths.get(args[0])) < Integer.MAX_VALUE){
             copier.directCopy(args, result, packer);
         } else {
-            copier.dis2(args, result, packer);
+            copier.multiBufferDirectCopy(args, result, packer);
         }
         result.deleteOnExit();
     }
